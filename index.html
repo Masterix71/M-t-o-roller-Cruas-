@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Météo Roller ViaRhôna</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0056b3">
+    <style>
+        :root {
+            --bg-color: #f0f8ff;
+            --primary: #0056b3;
+            --card-bg: #ffffff;
+            --text-main: #333333;
+            --text-muted: #666666;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; text-align: center; }
+        
+        header { margin-bottom: 20px; }
+        h1 { color: var(--primary); font-size: 24px; margin-bottom: 5px; }
+        p.subtitle { color: var(--text-muted); font-size: 14px; }
+        
+        .reco-box {
+            background-color: var(--primary);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 25px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .weather-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px; }
+        
+        .hour-card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        
+        .hour-title { font-size: 20px; font-weight: bold; color: var(--primary); width: 60px;}
+        .weather-details { text-align: left; flex-grow: 1; padding-left: 15px; font-size: 14px; }
+        .weather-details p { margin: 3px 0; }
+        
+        .btn-refresh {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.1s;
+        }
+        .btn-refresh:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Météo Roller</h1>
+        <p class="subtitle">Cruas (11h - 13h)</p>
+    </header>
+
+    <div class="reco-box" id="recommendation">
+        Chargement de la recommandation...
+    </div>
+
+    <div class="weather-container" id="weather-data">
+        </div>
+
+    <button class="btn-refresh" onclick="fetchWeather()">🔄 Actualiser</button>
+
+    <script>
+        async function fetchWeather() {
+            const url = "https://api.open-meteo.com/v1/forecast?latitude=44.655&longitude=4.762&hourly=precipitation_probability,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=Europe%2FParis&forecast_days=1";
+            
+            document.getElementById('recommendation').innerText = "Actualisation...";
+            document.getElementById('weather-data').innerHTML = "";
+
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const times = data.hourly.time;
+                const targetHours = [11, 12, 13];
+                let windDirections = [];
+                let html = "";
+
+                for (let i = 0; i < times.length; i++) {
+                    const date = new Date(times[i]);
+                    const hour = date.getHours();
+
+                    if (targetHours.includes(hour)) {
+                        const prob = data.hourly.precipitation_probability[i];
+                        const prec = data.hourly.precipitation[i];
+                        const wind = data.hourly.wind_speed_10m[i];
+                        const gust = data.hourly.wind_gusts_10m[i];
+                        const dir = data.hourly.wind_direction_10m[i];
+
+                        windDirections.push(dir);
+                        
+                        let rainIcon = prob > 20 ? "🌧️" : "🌤️";
+                        
+                        html += `
+                            <div class="hour-card">
+                                <div class="hour-title">${hour}h</div>
+                                <div class="weather-details">
+                                    <p>${rainIcon} Pluie : ${prob}% (${prec} mm)</p>
+                                    <p>💨 Vent : ${wind} km/h (Rafales ${gust})</p>
+                                    <p>🧭 Direction : ${dir}°</p>
+                                </div>
+                            </div>
+                        `;
+                    }
+                }
+
+                document.getElementById('weather-data').innerHTML = html;
+
+                // Logique de recommandation basée sur le vent à 11h
+                if (windDirections.length > 0) {
+                    const startWindDir = windDirections[0]; // On se base sur le vent de départ
+                    let recText = "";
+
+                    if (startWindDir >= 315 || startWindDir < 45) {
+                        recText = "Recommandation : Pars vers le NORD ⬆️ (face au vent)";
+                    } else if (startWindDir >= 135 && startWindDir < 225) {
+                        recText = "Recommandation : Pars vers le SUD ⬇️ (face au vent)";
+                    } else {
+                        recText = "Vent latéral ou nul ↔️ Choix libre !";
+                    }
+                    document.getElementById('recommendation').innerText = recText;
+                }
+
+            } catch (error) {
+                document.getElementById('recommendation').innerText = "Erreur de connexion ❌";
+                console.error("Erreur lors de la récupération des données:", error);
+            }
+        }
+
+        // Lancement au démarrage
+        fetchWeather();
+
+        // Enregistrement du Service Worker pour la PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(reg => {
+                    console.log('Service Worker enregistré', reg);
+                }).catch(err => {
+                    console.log('Échec du Service Worker', err);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
