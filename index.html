@@ -3,162 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Météo Roller ViaRhôna</title>
+    <title>Météo Roller Cruas - Semaine</title>
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0056b3">
     <style>
         :root {
-            --bg-color: #f0f8ff;
+            --bg-color: #f4f7f6;
             --primary: #0056b3;
-            --card-bg: #ffffff;
-            --text-main: #333333;
-            --text-muted: #666666;
+            --text-main: #333;
+            --go-bg: #e8f5e9;
+            --go-border: #4caf50;
+            --go-text: #2e7d32;
+            --nogo-bg: #ffebee;
+            --nogo-border: #f44336;
+            --nogo-text: #c62828;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-main); padding: 20px; text-align: center; }
+        body { background-color: var(--bg-color); color: var(--text-main); padding: 15px; }
         
-        header { margin-bottom: 20px; }
-        h1 { color: var(--primary); font-size: 24px; margin-bottom: 5px; }
-        p.subtitle { color: var(--text-muted); font-size: 14px; }
+        header { text-align: center; margin-bottom: 20px; }
+        h1 { color: var(--primary); font-size: 22px; margin-bottom: 5px; }
+        p.subtitle { color: #666; font-size: 14px; }
         
-        .reco-box {
-            background-color: var(--primary);
-            color: white;
-            padding: 20px;
-            border-radius: 12px;
-            font-size: 18px;
-            font-weight: bold;
-            margin-bottom: 25px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
+        .week-container { display: flex; flex-direction: column; gap: 12px; margin-bottom: 25px; }
         
-        .weather-container { display: flex; flex-direction: column; gap: 15px; margin-bottom: 25px; }
-        
-        .hour-card {
-            background-color: var(--card-bg);
-            border-radius: 12px;
+        .day-card {
+            background-color: white;
+            border-radius: 10px;
             padding: 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.08);
+            border-left: 6px solid #ccc;
+        }
+
+        .day-card.go { border-left-color: var(--go-border); background-color: var(--go-bg); }
+        .day-card.nogo { border-left-color: var(--nogo-border); background-color: var(--nogo-bg); }
+        
+        .day-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+            padding-bottom: 8px;
+            margin-bottom: 8px;
         }
         
-        .hour-title { font-size: 20px; font-weight: bold; color: var(--primary); width: 60px;}
-        .weather-details { text-align: left; flex-grow: 1; padding-left: 15px; font-size: 14px; }
-        .weather-details p { margin: 3px 0; }
+        .day-name { font-size: 18px; font-weight: bold; text-transform: capitalize; }
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .go .status-badge { background-color: var(--go-border); color: white; }
+        .nogo .status-badge { background-color: var(--nogo-border); color: white; }
+        
+        .weather-details { font-size: 14px; line-height: 1.6; }
+        .reco-vent {
+            margin-top: 8px;
+            padding: 8px;
+            background: rgba(255,255,255,0.6);
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 13px;
+        }
         
         .btn-refresh {
+            display: block;
+            width: 100%;
             background-color: var(--primary);
             color: white;
             border: none;
-            padding: 12px 25px;
+            padding: 15px;
             font-size: 16px;
-            border-radius: 25px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: bold;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.1s;
         }
-        .btn-refresh:active { transform: scale(0.95); }
+        .btn-refresh:active { transform: scale(0.98); }
     </style>
 </head>
 <body>
 
     <header>
-        <h1>Météo Roller</h1>
-        <p class="subtitle">Cruas (11h - 13h)</p>
+        <h1>Météo Roller - Cruas</h1>
+        <p class="subtitle">Semaine en cours • Prévisions de 12h00</p>
     </header>
 
-    <div class="reco-box" id="recommendation">
-        Chargement de la recommandation...
+    <div class="week-container" id="weather-data">
+        <p style="text-align:center;">Chargement des données de la semaine...</p>
     </div>
 
-    <div class="weather-container" id="weather-data">
-        </div>
-
-    <button class="btn-refresh" onclick="fetchWeather()">🔄 Actualiser</button>
+    <button class="btn-refresh" onclick="fetchWeather()">🔄 Actualiser la semaine</button>
 
     <script>
+        // Fonction pour trouver le Lundi de la semaine en cours
+        function getMonday(d) {
+            d = new Date(d);
+            d.setHours(0,0,0,0);
+            var day = d.getDay(),
+                diff = d.getDate() - day + (day == 0 ? -6:1); // Ajustement si on est dimanche
+            return new Date(d.setDate(diff));
+        }
+
         async function fetchWeather() {
-            const url = "https://api.open-meteo.com/v1/forecast?latitude=44.655&longitude=4.762&hourly=precipitation_probability,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=Europe%2FParis&forecast_days=1";
+            // past_days=7 permet de récupérer le début de semaine si on est déjà jeudi ou vendredi
+            const url = "https://api.open-meteo.com/v1/forecast?latitude=44.655&longitude=4.762&hourly=precipitation_probability,precipitation,wind_speed_10m,wind_gusts_10m,wind_direction_10m&timezone=Europe%2FParis&past_days=7&forecast_days=7";
             
-            document.getElementById('recommendation').innerText = "Actualisation...";
-            document.getElementById('weather-data').innerHTML = "";
+            document.getElementById('weather-data').innerHTML = "<p style='text-align:center;'>Chargement...</p>";
 
             try {
                 const response = await fetch(url);
                 const data = await response.json();
                 
                 const times = data.hourly.time;
-                const targetHours = [11, 12, 13];
-                let windDirections = [];
+                const today = new Date();
+                const monday = getMonday(today);
+                
+                // On prépare les dates cibles (Lundi au Dimanche à 12h00)
+                let targetDates = [];
+                for(let i = 0; i < 7; i++) {
+                    let d = new Date(monday);
+                    d.setDate(monday.getDate() + i);
+                    d.setHours(12, 0, 0, 0);
+                    targetDates.push({
+                        timestamp: d.getTime(),
+                        dayName: d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'short' })
+                    });
+                }
+
                 let html = "";
 
-                for (let i = 0; i < times.length; i++) {
-                    const date = new Date(times[i]);
-                    const hour = date.getHours();
-
-                    if (targetHours.includes(hour)) {
-                        const prob = data.hourly.precipitation_probability[i];
-                        const prec = data.hourly.precipitation[i];
-                        const wind = data.hourly.wind_speed_10m[i];
-                        const gust = data.hourly.wind_gusts_10m[i];
-                        const dir = data.hourly.wind_direction_10m[i];
-
-                        windDirections.push(dir);
+                // Parcours des dates cibles pour trouver les données
+                targetDates.forEach(target => {
+                    // Recherche de l'index correspondant à 12h pour ce jour
+                    const index = times.findIndex(t => new Date(t).getTime() === target.timestamp);
+                    
+                    if(index !== -1) {
+                        // Récupération des données météo à 12h
+                        const prob = data.hourly.precipitation_probability[index];
+                        const rain12 = data.hourly.precipitation[index];
                         
-                        let rainIcon = prob > 20 ? "🌧️" : "🌤️";
+                        // Vérification de la pluie à 10h et 11h pour anticiper une piste mouillée
+                        const rain11 = data.hourly.precipitation[index - 1] || 0;
+                        const rain10 = data.hourly.precipitation[index - 2] || 0;
+                        const totalRainMorning = rain10 + rain11 + rain12;
+
+                        const wind = data.hourly.wind_speed_10m[index];
+                        const gust = data.hourly.wind_gusts_10m[index];
+                        const dir = data.hourly.wind_direction_10m[index];
+
+                        // Logique GO / NO GO
+                        // Si plus de 0.5mm cumulés sur la fin de matinée, la piste ne sera pas sèche
+                        let isGo = (totalRainMorning <= 0.5 && prob < 40);
+                        let statusClass = isGo ? "go" : "nogo";
+                        let statusText = isGo ? "GO" : "NO GO";
                         
+                        // Logique du sens du vent
+                        let recText = "";
+                        if(isGo) {
+                            if (dir >= 315 || dir < 45) {
+                                recText = "🧭 Direction vent : NORD (Pars vers le Nord ⬆️)";
+                            } else if (dir >= 135 && dir < 225) {
+                                recText = "🧭 Direction vent : SUD (Pars vers le Sud ⬇️)";
+                            } else {
+                                recText = "↔️ Vent latéral (Sens au choix)";
+                            }
+                        } else {
+                            recText = "Piste potentiellement humide ou pluie prévue.";
+                        }
+
+                        // Construction de la carte HTML
                         html += `
-                            <div class="hour-card">
-                                <div class="hour-title">${hour}h</div>
+                            <div class="day-card ${statusClass}">
+                                <div class="day-header">
+                                    <div class="day-name">${target.dayName}</div>
+                                    <div class="status-badge">${statusText}</div>
+                                </div>
                                 <div class="weather-details">
-                                    <p>${rainIcon} Pluie : ${prob}% (${prec} mm)</p>
-                                    <p>💨 Vent : ${wind} km/h (Rafales ${gust})</p>
-                                    <p>🧭 Direction : ${dir}°</p>
+                                    <p>💧 Pluie : ${totalRainMorning.toFixed(1)} mm cumulés (Risque : ${prob}%)</p>
+                                    <p>💨 Vent : ${wind} km/h (Rafales : ${gust} km/h)</p>
+                                    <div class="reco-vent">${recText}</div>
                                 </div>
                             </div>
                         `;
                     }
-                }
+                });
 
                 document.getElementById('weather-data').innerHTML = html;
 
-                // Logique de recommandation basée sur le vent à 11h
-                if (windDirections.length > 0) {
-                    const startWindDir = windDirections[0]; // On se base sur le vent de départ
-                    let recText = "";
-
-                    if (startWindDir >= 315 || startWindDir < 45) {
-                        recText = "Recommandation : Pars vers le NORD ⬆️ (face au vent)";
-                    } else if (startWindDir >= 135 && startWindDir < 225) {
-                        recText = "Recommandation : Pars vers le SUD ⬇️ (face au vent)";
-                    } else {
-                        recText = "Vent latéral ou nul ↔️ Choix libre !";
-                    }
-                    document.getElementById('recommendation').innerText = recText;
-                }
-
             } catch (error) {
-                document.getElementById('recommendation').innerText = "Erreur de connexion ❌";
-                console.error("Erreur lors de la récupération des données:", error);
+                document.getElementById('weather-data').innerHTML = "<p style='text-align:center;color:red;'>Erreur de connexion ❌</p>";
+                console.error("Erreur API:", error);
             }
         }
 
-        // Lancement au démarrage
         fetchWeather();
-
-        // Enregistrement du Service Worker pour la PWA
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').then(reg => {
-                    console.log('Service Worker enregistré', reg);
-                }).catch(err => {
-                    console.log('Échec du Service Worker', err);
-                });
-            });
-        }
     </script>
 </body>
 </html>
